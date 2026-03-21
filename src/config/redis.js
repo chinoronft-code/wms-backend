@@ -6,12 +6,10 @@ const getRedis = async () => {
   if (client && client.isReady) return client;
 
   client = createClient({
+    url: process.env.REDIS_URL,
     socket: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT) || 6379,
       reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
     },
-    password: process.env.REDIS_PASSWORD || undefined,
   });
 
   client.on('error', (err) => console.error('[Redis] Error:', err.message));
@@ -21,7 +19,6 @@ const getRedis = async () => {
   return client;
 };
 
-// Key builders — centralised to avoid typos
 const keys = {
   packingSession: (userId) => `packing:session:${userId}`,
   activeBox:      (boxId)  => `packing:box:${boxId}:active`,
@@ -30,3 +27,10 @@ const keys = {
 };
 
 module.exports = { getRedis, keys };
+```
+
+บันทึกทั้ง 2 ไฟล์แล้ว push ขึ้น GitHub:
+```
+git add .
+git commit -m "fix database and redis config for railway"
+git push
