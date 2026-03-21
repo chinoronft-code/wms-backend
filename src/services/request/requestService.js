@@ -7,7 +7,7 @@
 
 const XLSX = require('xlsx');
 const { v4: uuidv4 } = require('uuid');
-const { query, withTransaction } = require('../config/database');
+const { query, withTransaction } = require('../../config/database');
 
 const SKU_PER_PACKER = parseInt(process.env.SKU_PER_PACKER) || 200;
 
