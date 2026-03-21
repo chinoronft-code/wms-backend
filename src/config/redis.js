@@ -1,4 +1,4 @@
-const { createClient } = require('redis');
+const { createClient } = require("redis");
 
 let client = null;
 
@@ -12,8 +12,8 @@ const getRedis = async () => {
     },
   });
 
-  client.on('error', (err) => console.error('[Redis] Error:', err.message));
-  client.on('ready', () => console.log('[Redis] Connected'));
+  client.on("error", (err) => console.error("[Redis] Error:", err.message));
+  client.on("ready", () => console.log("[Redis] Connected"));
 
   await client.connect();
   return client;
@@ -27,10 +27,3 @@ const keys = {
 };
 
 module.exports = { getRedis, keys };
-```
-
-บันทึกทั้ง 2 ไฟล์แล้ว push ขึ้น GitHub:
-```
-git add .
-git commit -m "fix database and redis config for railway"
-git push
