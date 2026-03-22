@@ -22,24 +22,31 @@ const generateDocNo = () => {
 };
 
 // ─── Parse Excel / CSV Buffer ────────────────────────────────────────────────
-const parseImportFile = (buffer, mimetype) => {
+const parseImportFile = (buffer) => {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   const sheet    = workbook.Sheets[workbook.SheetNames[0]];
-  const rows     = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
-  const items = [];
+  // อ่านเป็น array (header:1) เพื่อใช้ตำแหน่ง column
+  const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const items  = [];
   const errors = [];
 
-  rows.forEach((row, idx) => {
-    const lineNo  = idx + 2; // header = row 1
-    const skuCode = String(row['SKU Code'] || row['sku_code'] || row['SKU'] || '').trim();
-    const skuName = String(row['SKU Name'] || row['sku_name'] || row['Name'] || '').trim();
-    const barcode = String(row['Barcode']  || row['barcode']  || '').trim();
-    const qty     = parseInt(row['Quantity'] || row['qty'] || 1);
+  // R=17, W=22, AB=27, AC=28 (0-based index)
+  const COL_BARCODE  = 17;  // R
+  const COL_QTY      = 22;  // W
+  const COL_SKU      = 27;  // AB
+  const COL_NAME     = 28;  // AC
 
-    if (!skuCode) { errors.push(`Row ${lineNo}: missing SKU Code`); return; }
-    if (!skuName) { errors.push(`Row ${lineNo}: missing SKU Name`); return; }
-    if (isNaN(qty) || qty < 1) { errors.push(`Row ${lineNo}: invalid Quantity`); return; }
+  // เริ่มจาก row ที่ 2 (index 1) ข้าม header
+  rows.slice(1).forEach((row, idx) => {
+    const lineNo  = idx + 2;
+    const skuCode = String(row[COL_SKU]  || '').trim();
+    const skuName = String(row[COL_NAME] || '').trim();
+    const barcode = String(row[COL_BARCODE] || '').trim();
+    const qty     = parseInt(row[COL_QTY]) || 1;
+
+    if (!skuCode) { errors.push(`Row ${lineNo}: missing SKU Code (col AB)`); return; }
+    if (!skuName) { errors.push(`Row ${lineNo}: missing SKU Name (col AC)`); return; }
 
     items.push({ skuCode, skuName, barcode, quantity: qty });
   });
