@@ -13,6 +13,7 @@ const routes          = require('./routes');
 const notification    = require('./services/notification/notificationService');
 
 const app    = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // ─── Socket.io ────────────────────────────────────────────────────────────────
