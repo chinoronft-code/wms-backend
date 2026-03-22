@@ -205,4 +205,20 @@ router.get('/pos/export/:requestId', authenticate, authorize('admin', 'receiver'
   res.json(await posSvc.exportToJson(req.params.requestId));
 });
 
+router.post('/auth/change-password', authenticate, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ error: 'กรุณากรอกรหัสผ่านเดิมและใหม่' });
+  }
+  const { rows: [user] } = await db.query(
+    'SELECT * FROM users WHERE id = $1', [req.user.id]
+  );
+  const ok = await require('bcryptjs').compare(oldPassword, user.password);
+  if (!ok) return res.status(401).json({ error: 'รหัสผ่านเดิมไม่ถูกต้อง' });
+
+  const hash = await require('bcryptjs').hash(newPassword, 10);
+  await db.query('UPDATE users SET password = $1 WHERE id = $2', [hash, req.user.id]);
+  res.json({ success: true, message: 'เปลี่ยนรหัสผ่านสำเร็จ' });
+});
+
 module.exports = router;
