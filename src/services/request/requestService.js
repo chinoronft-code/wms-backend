@@ -80,14 +80,18 @@ const importRequest = async ({ fileBuffer, mimetype, description, createdBy }) =
   if (errors.length) return { success: false, errors };
   if (!items.length) return { success: false, errors: ['File contains no data rows'] };
 
-  // Check for duplicate SKU codes in this import
-  const skuCodes = items.map((i) => i.skuCode);
-  const dupes = skuCodes.filter((v, i, a) => a.indexOf(v) !== i);
-  if (dupes.length) {
-    return { success: false, errors: [`Duplicate SKU codes: ${[...new Set(dupes)].join(', ')}`] };
-  }
+  // รวม quantity ของ SKU ซ้ำแทนการ error
+  const merged = {};
+  items.forEach(item => {
+    if (merged[item.skuCode]) {
+      merged[item.skuCode].quantity += item.quantity;
+    } else {
+      merged[item.skuCode] = { ...item };
+    }
+  });
+  const dedupedItems = Object.values(merged);
 
-  // Fetch active packers (role = 'packer')
+  // Fetch active packers
   const { rows: packers } = await query(
     `SELECT id FROM users WHERE role = 'packer' AND is_active = TRUE ORDER BY username`
   );
@@ -96,45 +100,32 @@ const importRequest = async ({ fileBuffer, mimetype, description, createdBy }) =
   }
 
   const packerIds   = packers.map((p) => p.id);
-  const assignments = assignSkuToPackers(items, packerIds);
+  const assignments = assignSkuToPackers(dedupedItems, packerIds);
   const docNo       = generateDocNo();
 
   const request = await withTransaction(async (client) => {
-    // Create Purchase Request
     const { rows: [req] } = await client.query(
       `INSERT INTO purchase_requests (doc_no, description, total_sku, status, created_by)
        VALUES ($1, $2, $3, 'assigned', $4) RETURNING *`,
-      [docNo, description || null, items.length, createdBy]
+      [docNo, description || null, dedupedItems.length, createdBy]
     );
 
-    // Bulk insert request items
-    if (assignments.length > 0) {
-      const values = assignments.map((_, i) => {
-        const base = i * 5;
-        return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6})`;
-      }).join(',');
+    const vals = assignments.map((_, i) => {
+      const b = i * 7;
+      return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7})`;
+    }).join(',');
 
-      const params = assignments.flatMap((a) => [
-        uuidv4(), req.id, a.skuCode, a.skuName, a.barcode || null,
-        a.quantity
-      ]);
-      // rebuild with assignedTo
-      const vals2 = assignments.map((_, i) => {
-        const b = i * 6;
-        return `($${b+1},$${b+2},$${b+3},$${b+4},$${b+5},$${b+6},$${b+7})`;
-      }).join(',');
-      const params2 = assignments.flatMap((a) => [
-        uuidv4(), req.id, a.skuCode, a.skuName,
-        a.barcode || null, a.quantity, a.assignedTo,
-      ]);
+    const params = assignments.flatMap((a) => [
+      uuidv4(), req.id, a.skuCode, a.skuName,
+      a.barcode || null, a.quantity, a.assignedTo,
+    ]);
 
-      await client.query(
-        `INSERT INTO request_items
-           (id, request_id, sku_code, sku_name, barcode, quantity, assigned_to)
-         VALUES ${vals2}`,
-        params2
-      );
-    }
+    await client.query(
+      `INSERT INTO request_items
+         (id, request_id, sku_code, sku_name, barcode, quantity, assigned_to)
+       VALUES ${vals}`,
+      params
+    );
 
     return req;
   });
@@ -144,7 +135,7 @@ const importRequest = async ({ fileBuffer, mimetype, description, createdBy }) =
     request: {
       id:        request.id,
       docNo:     request.doc_no,
-      totalSku:  items.length,
+      totalSku:  dedupedItems.length,
       packers:   packerIds.length,
       skuPerPacker: SKU_PER_PACKER,
     },
